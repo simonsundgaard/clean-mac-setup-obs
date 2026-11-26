@@ -8,13 +8,17 @@ echo "Optional installs:"
 echo "  1) Homebrew + OBS"
 echo "  2) Blackmagic Desktop Video"
 echo "  3) OBS profile 'vip-engine' (1080p50 settings)"
+echo "  4) AnyDesk (via Homebrew)"
+echo "  5) TeamViewer (via Homebrew)"
 read -r -p "Enter numbers separated by spaces (e.g. '1 2 3'), or press Enter for none: " choices
-INSTALL_OBS=false; INSTALL_DV=false; INSTALL_OBS_PROFILE=false
+INSTALL_OBS=false; INSTALL_DV=false; INSTALL_OBS_PROFILE=false; INSTALL_ANYDESK=false; INSTALL_TEAMVIEWER=false
 for c in $choices; do
   case "$c" in
     1) INSTALL_OBS=true ;;
     2) INSTALL_DV=true ;;
     3) INSTALL_OBS_PROFILE=true ;;
+    4) INSTALL_ANYDESK=true ;;
+    5) INSTALL_TEAMVIEWER=true ;;
     *) echo "Ignoring unknown choice: $c" ;;
   esac
 done
@@ -57,18 +61,36 @@ echo "== Screensaver + lock: off =="
 defaults -currentHost write com.apple.screensaver idleTime -int 0
 sysadminctl -screenLock off -password -   # prompts for your login password
 
-# ---------- Optional: Homebrew + OBS ----------
-if $INSTALL_OBS; then
+# ---------- Optional: Homebrew apps (OBS, AnyDesk, TeamViewer) ----------
+ensure_brew() {
   if ! command -v brew >/dev/null; then
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     eval "$(/opt/homebrew/bin/brew shellenv)"
   fi
-  # brew refuses (and would stop the script) if OBS was installed by hand
-  if [ -d "/Applications/OBS.app" ]; then
-    echo "OBS is already installed, skipping."
+}
+
+# brew refuses (and would stop the script) if the app was installed by hand
+brew_cask_install() {  # <cask> <App name in /Applications>
+  if [ -d "/Applications/$2.app" ]; then
+    echo "$2 is already installed, skipping."
   else
-    brew install --cask obs
+    ensure_brew
+    brew install --cask "$1"
   fi
+}
+
+if $INSTALL_OBS; then
+  echo "== OBS =="
+  ensure_brew
+  brew_cask_install obs OBS
+fi
+if $INSTALL_ANYDESK; then
+  echo "== AnyDesk =="
+  brew_cask_install anydesk AnyDesk
+fi
+if $INSTALL_TEAMVIEWER; then
+  echo "== TeamViewer =="
+  brew_cask_install teamviewer TeamViewer
 fi
 
 # ---------- Optional: OBS profile ----------
