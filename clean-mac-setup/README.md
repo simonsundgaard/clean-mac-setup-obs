@@ -13,4 +13,4 @@ chmod +x clean-mac-setup.sh
 ./clean-mac-setup.sh
 ```
 
-At the start you pick optional installs (Homebrew + OBS, Blackmagic Desktop Video), e.g. `1 2` for both. You'll be asked for your password (sudo and screen-lock settings). Log out/in or reboot afterwards.
+At the start you pick optional installs (Homebrew + OBS, Blackmagic Desktop Video, the OBS profile in `obs/`), e.g. `1 2 3` for all. You'll be asked for your password (sudo and screen-lock settings). Log out/in or reboot afterwards.

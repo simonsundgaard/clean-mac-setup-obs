@@ -7,20 +7,23 @@ set -e
 echo "Optional installs:"
 echo "  1) Homebrew + OBS"
 echo "  2) Blackmagic Desktop Video"
-read -r -p "Enter numbers separated by spaces (e.g. '1 2'), or press Enter for none: " choices
-INSTALL_OBS=false; INSTALL_DV=false
+echo "  3) OBS profile 'vip-engine' (1080p50 settings)"
+read -r -p "Enter numbers separated by spaces (e.g. '1 2 3'), or press Enter for none: " choices
+INSTALL_OBS=false; INSTALL_DV=false; INSTALL_OBS_PROFILE=false
 for c in $choices; do
   case "$c" in
     1) INSTALL_OBS=true ;;
     2) INSTALL_DV=true ;;
+    3) INSTALL_OBS_PROFILE=true ;;
     *) echo "Ignoring unknown choice: $c" ;;
   esac
 done
 
-echo "== Dock: remove all apps (Finder + Trash stay) =="
+echo "== Dock: remove all apps (Finder + Trash stay), auto-hide =="
 defaults write com.apple.dock persistent-apps -array
 defaults write com.apple.dock persistent-others -array
 defaults write com.apple.dock show-recents -bool false
+defaults write com.apple.dock autohide -bool true
 
 echo "== Hot corners: disable all =="
 for c in tl tr bl br; do
@@ -68,12 +71,55 @@ if $INSTALL_OBS; then
   fi
 fi
 
+# ---------- Optional: OBS profile ----------
+# Fetched from GitHub so it also works when the script is run via curl
+OBS_PROFILE_URL="https://raw.githubusercontent.com/simonsundgaard/clean-mac-setup-obs/main/clean-mac-setup/obs/vipengine/basic.ini"
+OBS_PROFILE_NAME="vip-engine"
+OBS_PROFILE_DIR="vipengine"
+OBS_CONFIG="$HOME/Library/Application Support/obs-studio"
+
+install_obs_profile() (
+  if pgrep -xiq obs; then   # OBS overwrites its config when it quits
+    echo "OBS is running. Quit OBS and run the script again." >&2; exit 1
+  fi
+  dest="$OBS_CONFIG/basic/profiles/$OBS_PROFILE_DIR"
+  mkdir -p "$dest" || exit 1
+  [ -f "$dest/basic.ini" ] && { cp "$dest/basic.ini" "$dest/basic.ini.bak.$(date +%Y%m%d-%H%M%S)" || exit 1; }
+
+  # Point recording paths at this user's home folder, and drop the
+  # browser-dock cookie id, which belongs to the Mac the profile was exported from
+  curl -fsSL "$OBS_PROFILE_URL" \
+    | sed -E -e "s#^((Rec|FF)?FilePath)=/Users/[^/]+#\1=$HOME#" -e '/^CookieId=/d' \
+    > "$dest/basic.ini.new" || exit 1
+  grep -q "^Name=$OBS_PROFILE_NAME\$" "$dest/basic.ini.new" || { echo "Downloaded profile looks wrong" >&2; exit 1; }
+  mv "$dest/basic.ini.new" "$dest/basic.ini" || exit 1
+
+  # Make it the active profile (user.ini only exists once OBS has been opened)
+  user_ini="$OBS_CONFIG/user.ini"
+  if [ -f "$user_ini" ] && grep -q '^ProfileDir=' "$user_ini"; then
+    cp "$user_ini" "$user_ini.bak" || exit 1
+    sed -i '' -e "s#^Profile=.*#Profile=$OBS_PROFILE_NAME#" -e "s#^ProfileDir=.*#ProfileDir=$OBS_PROFILE_DIR#" "$user_ini" || exit 1
+  else
+    echo "OBS hasn't been opened yet: choose Profile > $OBS_PROFILE_NAME in OBS once."
+  fi
+)
+
+if $INSTALL_OBS_PROFILE; then
+  echo "== OBS profile: $OBS_PROFILE_NAME =="
+  if install_obs_profile; then
+    echo "OBS profile '$OBS_PROFILE_NAME' installed."
+  else
+    echo "WARNING: OBS profile not installed. Import it in OBS via Profile > Import."
+  fi
+fi
+
 # ---------- Optional: Blackmagic Desktop Video ----------
 # Download via Blackmagic's (undocumented) download API. Request format adapted from
 # https://github.com/pardeyke/homebrew-blackmagic (BSD-2-Clause, (c) Jonas Pardeyke).
-# Pinned version: update BMD_DV_ID from that tap's Casks/blackmagic-desktop-video.rb.
-BMD_DV_VERSION="16.3"
-BMD_DV_ID="79712b31f62d4d449396231781252708"
+# Pinned version. To update, find the "downloadId" of the newest "Desktop Video" Mac entry in
+# https://www.blackmagicdesign.com/api/support/us/downloads.json
+BMD_DV_VERSION="16.5"
+BMD_DV_ID="2a7b96a4684847b8874a9704a66a0221"
 
 # Every command checks its own exit code: set -e is ignored when called from "if"
 install_desktop_video() (
