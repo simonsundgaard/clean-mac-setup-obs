@@ -3,6 +3,20 @@
 # Run: chmod +x clean-mac-setup.sh && ./clean-mac-setup.sh
 set -e
 
+# ---------- Choose optional installs up front ----------
+echo "Optional installs:"
+echo "  1) Homebrew + OBS"
+echo "  2) Blackmagic Desktop Video"
+read -r -p "Enter numbers separated by spaces (e.g. '1 2'), or press Enter for none: " choices
+INSTALL_OBS=false; INSTALL_DV=false
+for c in $choices; do
+  case "$c" in
+    1) INSTALL_OBS=true ;;
+    2) INSTALL_DV=true ;;
+    *) echo "Ignoring unknown choice: $c" ;;
+  esac
+done
+
 echo "== Dock: remove all apps (Finder + Trash stay) =="
 defaults write com.apple.dock persistent-apps -array
 defaults write com.apple.dock persistent-others -array
@@ -41,13 +55,17 @@ defaults -currentHost write com.apple.screensaver idleTime -int 0
 sysadminctl -screenLock off -password -   # prompts for your login password
 
 # ---------- Optional: Homebrew + OBS ----------
-read -r -p "Install Homebrew + OBS? [y/N] " ans
-if [[ "$ans" =~ ^[Yy]$ ]]; then
+if $INSTALL_OBS; then
   if ! command -v brew >/dev/null; then
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     eval "$(/opt/homebrew/bin/brew shellenv)"
   fi
-  brew install --cask obs
+  # brew refuses (and would stop the script) if OBS was installed by hand
+  if [ -d "/Applications/OBS.app" ]; then
+    echo "OBS is already installed, skipping."
+  else
+    brew install --cask obs
+  fi
 fi
 
 # ---------- Optional: Blackmagic Desktop Video ----------
@@ -91,8 +109,8 @@ install_desktop_video() (
   sudo installer -pkg "$pkg" -target /
 )
 
-read -r -p "Install Blackmagic Desktop Video $BMD_DV_VERSION? [y/N] " ans
-if [[ "$ans" =~ ^[Yy]$ ]]; then
+if $INSTALL_DV; then
+  echo "== Blackmagic Desktop Video $BMD_DV_VERSION =="
   if install_desktop_video; then
     echo "Desktop Video installed. Approve the Blackmagic extension in"
     echo "System Settings > Privacy & Security, then restart."
